@@ -1,0 +1,294 @@
+
+# This script is responsible to handle the RTDE data sent via MATLAB Client.
+############# Global Variables ##############
+global position = [0,0,0,0,0,0]
+global jSpeed = [0,0,0,0,0,0]
+global acceleration = 1.4
+global velocity = 1.05
+global dT = 0
+global blendRadius = 0
+global lookAheadTime = 0.1
+global pGain = 300
+global serverCommand = 0
+global executingCurrentTask = True
+global totalWaypoints = 0
+global readCurrentWaypointIndex = 0
+
+############# Read task value from MATLAB ##############
+## Function to read the command flag from an input register
+def readServerCommand():
+    return read_input_integer_register(1)
+    sync()
+end
+
+def readWaypointsCount():
+    return read_input_integer_register(2)
+    sync()
+end
+
+############# Define the Move Threads ##############
+## Task1: Thread for executing the movej command
+thread moveThread():
+    enter_critical
+    write_output_integer_register(1, 1) # 1 indicates operation started
+    exit_critical
+    
+    movej(position, a=acceleration, v=velocity, t=dT, r=blendRadius)
+
+    enter_critical
+    write_output_integer_register(1, 2) # 2 indicates operation finished
+    exit_critical
+end
+
+## Task 2: Thread for executing the servoJ command
+thread servoThread():
+    enter_critical
+    write_output_integer_register(1, 1) # 1 indicates operation started
+    exit_critical
+    
+    servoj(position, a=acceleration, v=velocity, t=dT, lookahead_time=lookAheadTime, gain=pGain)
+    
+    enter_critical
+    write_output_integer_register(1, 2) # 2 indicates operation finished
+    exit_critical        
+end
+
+## Task3: Thread for executing the speedJ command
+thread speedThread():
+    enter_critical
+    write_output_integer_register(1, 1) # 1 indicates operation started
+    exit_critical
+    
+    speedj(jSpeed, a=acceleration, t=dT)
+    
+    enter_critical
+    write_output_integer_register(1, 2) # 2 indicates operation finished
+    exit_critical       
+end
+
+## Task4: Thread for executing the filling values command
+thread waypointFillingThread():
+    enter_critical
+    write_output_integer_register(2, 1) # 1 indicates operation started
+    exit_critical
+    
+    fillWaypointBuffers()
+    
+    enter_critical
+    write_output_integer_register(2, 2) # 2 indicates operation finished
+    exit_critical       
+end
+	
+############# Functions to exchange data and run threads ##############
+# Task1: Function to start the moveJ process
+def programMoveJ():    
+    textmsg("MoveJ command started")
+    if (serverCommand == 1):   
+        # Reading joint values and parameters from input registers
+        tempPosition = [0,0,0,0,0,0]
+        tempAccel = read_input_float_register(0)
+        tempVel = read_input_float_register(1)
+        tempDT = read_input_float_register(2)
+        tempBlendRadius = read_input_float_register(3)
+        tempPosition[0] = read_input_float_register(4)
+        tempPosition[1] = read_input_float_register(5)
+        tempPosition[2] = read_input_float_register(6)
+        tempPosition[3] = read_input_float_register(7)
+        tempPosition[4] = read_input_float_register(8)
+        tempPosition[5] = read_input_float_register(9)
+        
+        # Assign the values to movej parameters
+        enter_critical
+        position = tempPosition
+        velocity = tempVel
+        dT = tempDT
+        acceleration = tempAccel
+        blendRadius = tempBlendRadius
+        exit_critical
+    
+        move_thread = run moveThread()
+        join move_thread
+    end
+return True
+end
+
+# Task2: Function to start the servoJ process
+def programServoJ():
+    textmsg("ServoJ command started")
+    if (serverCommand == 2):    
+    # Reading joint values and parameters from input registers
+    tempPosition = [0,0,0,0,0,0]
+    tempAccel = read_input_float_register(0)
+    tempVel = read_input_float_register(1)
+    tempDT = read_input_float_register(2)
+    tempLookAhead = read_input_float_register(3)
+    tempGain = read_input_float_register(4)
+    tempPosition[0] = read_input_float_register(5)
+    tempPosition[1] = read_input_float_register(6)
+    tempPosition[2] = read_input_float_register(7)
+    tempPosition[3] = read_input_float_register(8)
+    tempPosition[4] = read_input_float_register(9)
+    tempPosition[5] = read_input_float_register(10)
+    
+    # Assign the values to servoJ parameters
+    enter_critical
+    position = tempPosition
+    acceleration = tempAccel
+    velocity = tempVel
+    dT = tempDT
+    lookAheadTime = tempLookAhead
+    pGain = tempGain
+    exit_critical
+        
+    servo_thrd = run servoThread()
+    join servo_thrd
+    end
+return True
+end
+
+# Task3: Function to start the speedJ process
+def programSpeedJ():
+    textmsg("SpeedJ command started")
+    if (serverCommand == 3):        
+        # Reading joint values and parameters from input registers
+        tempjPosition = [0,0,0,0,0,0]
+        tempAccel = read_input_float_register(0)
+        tempDT = read_input_float_register(1)
+        tempjPosition[0] = read_input_float_register(2)
+        tempjPosition[1] = read_input_float_register(3)
+        tempjPosition[2] = read_input_float_register(4)
+        tempjPosition[3] = read_input_float_register(5)
+        tempjPosition[4] = read_input_float_register(6)
+        tempjPosition[5] = read_input_float_register(7)
+        
+        # Assign the values to speedJ parameters
+        enter_critical
+        jSpeed = tempjPosition
+        acceleration = tempAccel
+        dT = tempDT
+        exit_critical
+
+        speedj_thread = run speedThread()
+        join speedj_thread        
+    end
+return True
+end
+
+# Task4: Function to activate gripper
+def programGrip():
+    if (serverCommand == 4):
+        # 1. For vacuum gripper: Uncomment the below line
+        # rq_vacuum_grip(False, 60, 40, 3000, True, "2")
+
+        # 2. For 2-finger gripper: Uncomment the below lines
+        # rq_activate_and_wait()
+        # rq_close()
+
+        textmsg("Grip action initiated on gripper")
+    end
+return True
+end
+
+# Task5: Function to release gripper
+def programRelease():    
+    if (serverCommand == 5):
+
+        # 1. For vacuum gripper: Uncomment the below line
+        # rq_vacuum_release(False,5,True,"2")
+
+        # 2. For 2-finger gripper: Uncomment the below lines
+        # rq_activate_and_wait()
+        # rq_open()
+
+        textmsg("Release action initiated on gripper")
+    end
+return True   
+end
+
+# Task6: Call the thread to fill in the waypoints
+def startWaypointFillingThread():    
+    if (serverCommand == 6):  
+    	filing_thread = run waypointFillingThread()
+        join filing_thread        
+    end    
+return True
+end
+
+# Task-subprogram: Function call to fill in the buffers with waypoints
+def fillWaypointBuffers():    
+            acceleration = read_input_float_register(0)
+            velocity = read_input_float_register(1)
+            wayPointTimes[readCurrentWaypointIndex-1] = read_input_float_register(2)
+            blendRadii[readCurrentWaypointIndex -1] = read_input_float_register(3)                       
+            joint1[readCurrentWaypointIndex -1] = read_input_float_register(4)
+            joint2[readCurrentWaypointIndex -1] = read_input_float_register(5)
+            joint3[readCurrentWaypointIndex -1] = read_input_float_register(6)
+            joint4[readCurrentWaypointIndex -1] = read_input_float_register(7)
+            joint5[readCurrentWaypointIndex -1] = read_input_float_register(8)
+            joint6[readCurrentWaypointIndex -1] = read_input_float_register(9)            
+end
+
+# Task7: Function to move multiple Waypoints using MoveJ
+def programMultipleMoveJ():
+textmsg("MoveJ for multiple waypoints command started")
+    if (serverCommand == 7):  
+	    waypoint = 0
+        while waypoint < readCurrentWaypointIndex:
+            position = [joint1[waypoint], joint2[waypoint], joint3[waypoint], joint4[waypoint], joint5[waypoint], joint6[waypoint]]
+            blendRadius = blendRadii[waypoint]  
+            dT = wayPointTimes[waypoint]
+            move_thread = run moveThread()
+            join move_thread
+            waypoint = waypoint + 1
+        end        
+    end    
+return True
+end
+
+#Task8 - Include function to reset trajectory parameters
+def resetTrajectoryParameters():
+    global joint1 = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    global joint2 = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    global joint3 = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    global joint4 = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    global joint5 = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    global joint6 = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    global wayPointTimes = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    global blendRadii = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+
+end
+
+############# Main program loop ##############
+while executingCurrentTask:
+    # Read the server Command value from MATLAB Client
+    serverCommand = readServerCommand()    
+				
+    # Enters the first condition while starting.
+    if (serverCommand == 0):
+        resetTrajectoryParameters()
+        sync()
+    elif (serverCommand == 1):
+        executingCurrentTask = programMoveJ()
+        sync()
+    elif (serverCommand == 2):
+        executingCurrentTask = programServoJ()
+        sync()
+    elif (serverCommand == 3):
+        executingCurrentTask = programSpeedJ()
+        sync()
+    elif (serverCommand == 4):
+        executingCurrentTask = programGrip()
+        sync()
+    elif (serverCommand == 5):
+        executingCurrentTask = programRelease()
+        sync()
+    elif (serverCommand == 6):
+	readCurrentWaypointIndex = readWaypointsCount()
+        executingCurrentTask = startWaypointFillingThread()              
+        sync()
+    elif (serverCommand == 7):
+    	readCurrentWaypointIndex = readWaypointsCount()
+        executingCurrentTask = programMultipleMoveJ()   
+        sync()
+    end
+end
