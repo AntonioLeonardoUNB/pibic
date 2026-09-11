@@ -166,7 +166,7 @@ Os exemplos incluem:
 
 ### 2. Demonstrações Sintéticas (Geradas via LLMs)
 
-Trajetórias geradas automaticamente por Modelos de Linguagem de Larga Escala (LLMs), que interpretaram comandos em linguagem natural e sintetizaram os movimentos no ambiente PyBullet antes de serem exportadas[cite: 1]. Os exemplos incluem:
+Trajetórias geradas automaticamente por Modelos de Linguagem de Larga Escala (LLMs), que interpretaram comandos em linguagem natural e sintetizaram os movimentos no ambiente PyBullet antes de serem exportadas. Os exemplos incluem:
 
 * Nota 2: Essas demos dispensam a mudança de TCP;
 * Nota 3: Esse tipo de dado geralmente precisa de pré-processamento;
