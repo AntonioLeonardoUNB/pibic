@@ -6,7 +6,7 @@
 % Carrega a variável ds_lpv (modelo do sistema dinâmico) do workspace
 % Esta parte depende do toolbox ds-opt devidamente configurado c:\Users\Quito\Downloads\Dados_organizados\Drawing2\Drawing2_ds_lpv.mat
 Clear
-load dslpv_exemplo.mat;
+load('../exemplos/dslpv_exemplo.mat');
 
 % -------------------------------------------------------------------------
 % 1. Configuração da Conexão com o Robô 
