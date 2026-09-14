@@ -9,7 +9,7 @@ Este repositório contém os tutoriais, scripts e conjuntos de dados utilizados 
 | Diretório | Descrição |
 | :--- | :--- |
 | **`exemplos/`** | Arquivos de dados. Armazena as trajetórias de demonstração (`.csv`), os logs de replicação/generalização DMP |
-| **`docker/`** | Arquivos e instruções para a configuração do ambiente simulado do UR3 (URSim). |
+| **`polyscope/`** | Arquivos e instruções para a configuração do ambiente simulado do UR3 (URSim). |
 | **`execute_dmp_ur3.py`** | Script principal de execução em python |
 | **`execute_ds_ur3.m`** |  Script principal de execução em MATLAB |
 |**`compare_dmp_results.py`**| Script de validação métrica e visual. Contém o avaliador de RMSE e gerador de gráficos |
@@ -44,7 +44,7 @@ Siga as instruções do repositório original, disponível em: <https://github.c
 
 ---
 
-## 🤖 Configurando o Simulador URSim (Docker)
+## 🤖 Configurando o Simulador URSim (Polyscope)
 
 Para executar os testes sem o hardware físico, utilizamos o simulador oficial da Universal Robots conteinerizado.
 
@@ -68,7 +68,7 @@ Para executar os testes sem o hardware físico, utilizamos o simulador oficial d
 4. Use a aba PORTS no VS Code para fazer o roteamento de portas do container do Docker para o localhost do computador;
     ![Portas VSCode](https://fir-wool-eae.notion.site/image/attachment%3A309cccfe-f1be-4504-bc83-d1f344ade763%3Aimage.png?table=block&id=2cefb16b-3ed1-8186-be9b-fa5062712ca1&spaceId=56117687-5331-4b6f-9239-adabd0956ef7&width=2000&userId=&cache=v2&imgBuildSrc=requestProxiedImageUrl)
 
-5. (OPCIONAL, APENAS MÉTODO DS-OPT) Na pasta ${HOME}/ur3/programs adicione o arquivo `URServerScript.script` localizado na pasta `docker` deste respositório;
+5. (OPCIONAL, APENAS MÉTODO DS-OPT) Na pasta ${HOME}/ur3/programs adicione o arquivo `URServerScript.script` localizado na pasta `polyscope` deste respositório;
 
 6. Abra o endereço <http://localhost:6080/vnc.html> no seu browser e ligue o robô no simulador;
 ---
